@@ -23,7 +23,7 @@ const EMPTY: Deck = {
   note: '',
 }
 
-// Змініть тег, коли змінюється форма Deck: він відхиляє збережене старою версією.
+// Change the tag whenever the shape of Deck changes: it rejects state saved by an older version.
 const deck = atom({ plugin: 'session-deck', key: 'deck' } as const, EMPTY, {
   shape: 'deck-1',
 })
@@ -37,13 +37,13 @@ const bar = (p: number, width: number) => {
 
 const secs = (ms: number) =>
   ms < 60_000
-    ? `${(ms / 1000).toFixed(1)}с`
-    : `${Math.floor(ms / 60_000)}хв ${Math.floor((ms % 60_000) / 1000)}с`
+    ? `${(ms / 1000).toFixed(1)}s`
+    : `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`
 
 const kilo = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n))
 
 const windowName = (kind: string) =>
-  kind === 'five_hour' ? '5 год' : kind === 'seven_day' ? '7 діб' : kind
+  kind === 'five_hour' ? '5h' : kind === 'seven_day' ? '7d' : kind
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -69,21 +69,21 @@ async function refresh($: Api) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    // Таймер лише просить перемалювати панель: лічильник тривалості ходу
-    // обчислюється при малюванні.
+    // The timer only requests a repaint: the turn duration counter
+    // is computed at render time.
     $.clock.every(1000, () => $.ui.invalidate('ui.render'))
     await refresh($)
-    void $.ui.open({ id: PANE, title: 'Сесія' })
+    void $.ui.open({ id: PANE, title: 'Session' })
     await $.command.register({
       name: 'session-deck',
-      description: 'Відкрити панель сесії з кнопками керування',
+      description: 'Open the session panel with control buttons',
     })
 
     return next(e)
   })
 
   on('command.run', { command: 'session-deck' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Сесія', focus: true })
+    await $.ui.open({ id: PANE, title: 'Session', focus: true })
 
     return {}
   })
@@ -115,7 +115,7 @@ export const register: Register = on => {
 
   on('tool.call', async ($, e, next) => {
     const id = e.tool_use_id
-    // Збій панелі не повинен блокувати виклик інструмента.
+    // A panel failure must not block the tool call.
     await update($, deck, d => ({
       ...d,
       tools: [...d.tools, { id, tool: e.tool }].slice(-20),
@@ -148,33 +148,33 @@ export const register: Register = on => {
 
     const stop = async () => {
       const cur = await read($, deck)
-      if (!cur.turnId) return note('Немає ходу, який можна зупинити')
+      if (!cur.turnId) return note('No turn to stop')
       try {
         await $.turn.abort({ turnId: cur.turnId })
-        await note('Хід зупинено')
+        await note('Turn stopped')
       } catch (err) {
-        await note('Не вдалося зупинити: ' + message(err))
+        await note('Failed to stop: ' + message(err))
       }
     }
 
     const compact = async () => {
       const cur = await read($, deck)
-      if (cur.turnId) return note('Спершу зупиніть поточний хід')
+      if (cur.turnId) return note('Stop the current turn first')
       try {
         await $.session.compact()
         await refresh($)
-        await note('Контекст стиснуто')
+        await note('Context compacted')
       } catch (err) {
-        await note('Не вдалося стиснути: ' + message(err))
+        await note('Failed to compact: ' + message(err))
       }
     }
 
     const reload = async () => {
       try {
         await refresh($)
-        await note('Оновлено')
+        await note('Refreshed')
       } catch (err) {
-        await note('Не вдалося оновити: ' + message(err))
+        await note('Failed to refresh: ' + message(err))
       }
     }
 
@@ -182,17 +182,17 @@ export const register: Register = on => {
       <Box flexDirection="column" rowGap={1}>
         <Box flexDirection="row" columnGap={2}>
           <Text bold color="magenta">
-            ◆ СЕСІЯ
+            ◆ SESSION
           </Text>
           {working ? (
             <Text inverse bold color="yellow">
               {' '}
-              ПРАЦЮЄ {secs(Math.max(0, now - d.startedAt))}{' '}
+              WORKING {secs(Math.max(0, now - d.startedAt))}{' '}
             </Text>
           ) : (
             <Text inverse bold color="green">
               {' '}
-              ПРОСТОЮЄ{' '}
+              IDLE{' '}
             </Text>
           )}
         </Box>
@@ -202,7 +202,7 @@ export const register: Register = on => {
             <Text bold color="cyan">
               {d.model || '—'}
             </Text>
-            <Text color="blue">ходів: {d.turns}</Text>
+            <Text color="blue">turns: {d.turns}</Text>
             {d.costUsd !== null && <Text color="yellow">${d.costUsd.toFixed(2)}</Text>}
           </Box>
           <Text dimColor wrap="truncate-end">
@@ -212,7 +212,7 @@ export const register: Register = on => {
 
         <Box flexDirection="column" borderStyle="round" borderColor={tone(ctx)} paddingX={1}>
           <Box flexDirection="row" columnGap={1}>
-            <Text bold>контекст</Text>
+            <Text bold>context</Text>
             <Text color={tone(ctx)}>{bar(ctx, width)}</Text>
             <Text bold color={tone(ctx)}>
               {d.percent === null ? '—' : d.percent + '%'}
@@ -220,7 +220,7 @@ export const register: Register = on => {
           </Box>
           {d.tokens !== null && d.window > 0 && (
             <Text dimColor>
-              {kilo(d.tokens)} / {kilo(d.window)} токенів
+              {kilo(d.tokens)} / {kilo(d.window)} tokens
             </Text>
           )}
           {d.limits.map(l => (
@@ -236,19 +236,19 @@ export const register: Register = on => {
           {d.tools.length > 0 ? (
             <Text color="cyan">⚙ {d.tools.map(t => t.tool).join(', ')}</Text>
           ) : (
-            <Text dimColor>інструменти не виконуються</Text>
+            <Text dimColor>no tools running</Text>
           )}
           {d.last && (
             <Text dimColor>
-              останній хід: {secs(d.last.ms)}, {d.last.reason}
+              last turn: {secs(d.last.ms)}, {d.last.reason}
             </Text>
           )}
         </Box>
 
         <Box flexDirection="row" columnGap={2}>
-          <Button key="stop" label="Стоп" hotkey="s" onPress={stop} />
-          <Button key="compact" label="Стиснути" hotkey="c" onPress={compact} />
-          <Button key="refresh" label="Оновити" hotkey="r" onPress={reload} />
+          <Button key="stop" label="Stop" hotkey="s" onPress={stop} />
+          <Button key="compact" label="Compact" hotkey="c" onPress={compact} />
+          <Button key="refresh" label="Refresh" hotkey="r" onPress={reload} />
         </Box>
         {d.note !== '' && <Text color="magenta">{d.note}</Text>}
       </Box>
