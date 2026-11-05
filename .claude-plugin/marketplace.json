@@ -1,0 +1,5 @@
+{
+  "name": "nginecode-mods",
+  "owner": { "name": "nginecode" },
+  "plugins": [{ "name": "session-deck", "source": "./" }]
+}

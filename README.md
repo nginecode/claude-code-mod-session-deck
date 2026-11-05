@@ -66,12 +66,13 @@ the slash command:
 
 ## Files
 
-| File           | Purpose                                                              |
-| -------------- | -------------------------------------------------------------------- |
-| `plugin.json`  | Mod manifest: name, version, description, author, types entry.      |
-| `hooks.json`   | Declares the hook modules to load (`./register.tsx`).                |
-| `register.tsx` | All logic: state atom, hooks, command and panel rendering.           |
-| `index.d.ts`   | `Deck` and `Git` state types and `PluginState` declaration for `session-deck`.  |
+| File                              | Purpose                                                          |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `.claude-plugin/plugin.json`      | Mod manifest: name, version, description, author, types entry.  |
+| `.claude-plugin/marketplace.json` | Makes this repository an installable marketplace.                |
+| `hooks/hooks.json`                | Declares the hook modules to load (`./register.tsx`).            |
+| `hooks/register.tsx`              | All logic: state atom, hooks, command and panel rendering.       |
+| `types/index.d.ts`                | `Deck` and `Git` state types and the `PluginState` declaration.  |
 
 ## How it works
 
@@ -113,11 +114,29 @@ The timer only invalidates the render; the elapsed time is computed while render
 
 ## Installation
 
-Place this folder where Claude Code loads mods from (the mod's `plugin.json` and
-`hooks.json` must be at its root) and restart or reload Claude Code.
+From GitHub, at the prompt of a terminal session:
 
-## Known issue
+```
+/plugin install session-deck --marketplace nginecode/claude-code-mod-session-deck
+```
 
-`plugin.json` points `types` to `./types/index.d.ts` and `register.tsx` imports
-`../types`, but in this repository the type declarations live in the root `index.d.ts`.
-Adjust the paths (or move the file into a `types/` folder) to match your layout.
+Answer `y` to add the marketplace, then pick a scope. In the desktop app, where `/plugin`
+does not run: click + next to the prompt box, then Plugins, Add marketplace with
+`nginecode/claude-code-mod-session-deck`, then Add plugin.
+
+### Local install (development)
+
+Clone the repository, then either run a single session straight from the folder:
+
+```bash
+claude --plugin-dir /path/to/claude-code-mod-session-deck
+```
+
+or add the folder as a marketplace and install from it. The plugin is then read from the
+folder itself, so after an edit `/reload-plugins` is enough:
+
+```bash
+claude plugin marketplace add /path/to/claude-code-mod-session-deck
+claude plugin install session-deck@nginecode-mods
+```
+
