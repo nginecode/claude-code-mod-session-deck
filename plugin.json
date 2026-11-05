@@ -1,0 +1,7 @@
+{
+  "name": "session-deck",
+  "version": "0.1.0",
+  "description": "Кольорова панель сесії: контекст, ліміти, вартість, статус ходу та кнопки керування",
+  "author": { "name": "creomatix" },
+  "types": "./types/index.d.ts"
+}
