@@ -42,6 +42,11 @@ const GIT_PROMPTS = {
 
 type GitAction = keyof typeof GIT_PROMPTS
 
+// Outbound actions need a second press within this window.
+const CONFIRM_MS = 10_000
+const OUTBOUND = new Set<GitAction>(['push', 'pr'])
+let armed: { action: GitAction; at: number } | null = null
+
 // Parses `git status --porcelain=v1 -b` output into the Git summary.
 const parseGit = (out: string) => {
   const lines = out.split('\n').filter(l => l !== '')
@@ -95,7 +100,18 @@ async function refresh($: Api) {
   ])
   // Not a repository, or git is missing: the Git section just hides.
   const git = await $.process
-    .run(['git', 'status', '--porcelain=v1', '-b'], { timeoutMs: 5000 })
+    .run(
+      [
+        'git',
+        '-c',
+        'core.fsmonitor=false',
+        '--no-optional-locks',
+        'status',
+        '--porcelain=v1',
+        '-b',
+      ],
+      { cwd, env: { GIT_OPTIONAL_LOCKS: '0' }, timeoutMs: 5000 },
+    )
     .then(r => (r.exitCode === 0 ? parseGit(r.stdout) : null))
     .catch(() => null)
   await update($, deck, d => ({
@@ -118,7 +134,6 @@ export const register: Register = on => {
     // is computed at render time.
     $.clock.every(1000, () => $.ui.invalidate('ui.render'))
     await refresh($)
-    void $.ui.open({ id: PANE, title: 'Session' })
     await $.command.register({
       name: 'session-deck',
       description: 'Open the session panel with control buttons',
@@ -128,7 +143,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'session-deck' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Session', focus: true })
+    await $.ui.open({ id: PANE, title: 'Session' })
 
     return {}
   })
@@ -217,12 +232,24 @@ export const register: Register = on => {
     const gitAction = (action: GitAction, label: string) => async () => {
       const cur = await read($, deck)
       if (cur.turnId) return note('Wait for the current turn to finish')
-      try {
-        void $.prompt.submit({ text: GIT_PROMPTS[action] })
-        await note('Asked Claude to ' + label)
-      } catch (err) {
-        await note('Failed to ask Claude: ' + message(err))
+      const target = cur.git
+        ? `${cur.git.branch} -> ${cur.git.upstream ?? 'a new upstream branch'}`
+        : 'the current branch'
+      if (OUTBOUND.has(action)) {
+        const t = await $.clock.now()
+        if (!armed || armed.action !== action || t - armed.at > CONFIRM_MS) {
+          armed = { action, at: t }
+
+          return note(`Press ${label} again within 10s to confirm (${target})`)
+        }
+        armed = null
       }
+      const text = OUTBOUND.has(action)
+        ? `${GIT_PROMPTS[action]} The branch and remote are: ${target}. Stop and ask if the repository state differs.`
+        : GIT_PROMPTS[action]
+      // Submitted without awaiting: it resolves with the turn it starts.
+      $.prompt.submit({ text }).catch(err => note('Failed to ask Claude: ' + message(err)))
+      await note('Asked Claude to ' + label)
     }
 
     const reload = async () => {
@@ -324,16 +351,16 @@ export const register: Register = on => {
                 <Text color="red">?{d.git.untracked} new</Text>
               </Box>
             )}
-            <Box flexDirection="row" columnGap={2}>
+            <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
               <Button key="commit" label="Commit" hotkey="m" onPress={gitAction('commit', 'commit')} />
-              <Button key="push" label="Push" hotkey="p" onPress={gitAction('push', 'push')} />
-              <Button key="pr" label="PR" hotkey="o" onPress={gitAction('pr', 'open a PR')} />
+              <Button key="push" label="Push" hotkey="p" onPress={gitAction('push', 'Push')} />
+              <Button key="pr" label="PR" hotkey="o" onPress={gitAction('pr', 'PR')} />
               <Button key="review" label="Review" hotkey="v" onPress={gitAction('review', 'review changes')} />
             </Box>
           </Box>
         )}
 
-        <Box flexDirection="row" columnGap={2}>
+        <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
           <Button key="stop" label="Stop" hotkey="s" onPress={stop} />
           <Button key="compact" label="Compact" hotkey="c" onPress={compact} />
           <Button key="refresh" label="Refresh" hotkey="r" onPress={reload} />

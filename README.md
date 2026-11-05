@@ -43,6 +43,8 @@ The Git section appears when the session directory is a git repository. It is re
 after every turn, on `session.measure` and on Refresh (it runs a single
 `git status --porcelain=v1 -b`). The buttons do not run git themselves: each one submits
 a prompt, so Claude performs the work under your normal permission rules.
+Push and PR need a second press within 10 seconds, and the confirmation shows the
+branch and upstream they will use.
 
 | Button | Hotkey | Asks Claude to                                                              |
 | ------ | ------ | --------------------------------------------------------------------------- |
@@ -57,8 +59,8 @@ turn is running, and `gh` must be installed and authenticated for PR.
 
 ## Usage
 
-The panel opens automatically when a session starts. To open or focus it again, run
-the slash command:
+The panel does not open on its own, so it never takes the place of Claude Code's default
+panels. Open it with the slash command:
 
 ```
 /session-deck
@@ -102,7 +104,7 @@ shape of `Deck` changes so that state saved by an older version is rejected.
 
 | Hook                | What it does                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------- |
-| `session.start`     | Starts a 1 s repaint timer, loads data, opens the panel, registers `/session-deck`.             |
+| `session.start`     | Starts a 1 s repaint timer, loads data, registers `/session-deck`.             |
 | `command.run`       | Opens and focuses the panel for `/session-deck`.                                                |
 | `turn.start`        | Marks the turn as running and records its start time. Sub-agent turns are ignored.              |
 | `turn.complete`     | Clears running state, stores the last turn's duration and reason, refreshes data.               |
