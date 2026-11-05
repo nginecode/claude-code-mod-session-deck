@@ -14,6 +14,8 @@ live session status and gives you one-key control buttons.
 - **Rate limits** – one bar per limit window (`5h`, `7d`, other kinds are shown as-is).
 - **Running tools** – the tools being executed right now (last 20 tracked), plus the
   duration and reason of the last completed turn.
+- **Git control** – branch, ahead/behind counts, staged/modified/new file counts and
+  Commit, Push, PR and Review buttons that ask Claude to do the git work.
 - **Control buttons** – Stop, Compact, Refresh, each with a hotkey.
 - **Status line** – a short note below the buttons with the result of the last action.
 
@@ -35,6 +37,24 @@ Context and rate-limit bars change color with usage:
 | Compact | `c`    | Compacts the context (`session.compact`). Refused mid-turn.   |
 | Refresh | `r`    | Re-reads usage, model, cwd and turn count.                    |
 
+### Git control
+
+The Git section appears when the session directory is a git repository. It is refreshed
+after every turn, on `session.measure` and on Refresh (it runs a single
+`git status --porcelain=v1 -b`). The buttons do not run git themselves: each one submits
+a prompt, so Claude performs the work under your normal permission rules.
+
+| Button | Hotkey | Asks Claude to                                                              |
+| ------ | ------ | --------------------------------------------------------------------------- |
+| Commit | `m`    | Review the changes and commit them with a Conventional Commits message.     |
+| Push   | `p`    | Push the current branch (sets upstream if missing, never force-pushes).     |
+| PR     | `o`    | Push if needed and open a pull request with the `gh` CLI, then report URL.  |
+| Review | `v`    | Review the uncommitted changes without modifying any files.                 |
+
+The prompts live in `GIT_PROMPTS` in `register.tsx`; edit them to match your conventions.
+They tell Claude not to add AI attribution trailers. The git buttons are refused while a
+turn is running, and `gh` must be installed and authenticated for PR.
+
 ## Usage
 
 The panel opens automatically when a session starts. To open or focus it again, run
@@ -51,11 +71,11 @@ the slash command:
 | `plugin.json`  | Mod manifest: name, version, description, author, types entry.      |
 | `hooks.json`   | Declares the hook modules to load (`./register.tsx`).                |
 | `register.tsx` | All logic: state atom, hooks, command and panel rendering.           |
-| `index.d.ts`   | `Deck` state type and `PluginState` declaration for `session-deck`.  |
+| `index.d.ts`   | `Deck` and `Git` state types and `PluginState` declaration for `session-deck`.  |
 
 ## How it works
 
-All state lives in a single atom, `deck` (shape tag `deck-1`). Bump the tag whenever the
+All state lives in a single atom, `deck` (shape tag `deck-2`). Bump the tag whenever the
 shape of `Deck` changes so that state saved by an older version is rejected.
 
 ### State (`Deck`)
@@ -74,6 +94,7 @@ shape of `Deck` changes so that state saved by an older version is rejected.
 | `window`    | Context window size.                                     |
 | `limits`    | Rate limits: `{ kind, percent }[]`.                      |
 | `costUsd`   | Session cost in USD, or `null`.                          |
+| `git`       | Branch, upstream, ahead/behind and file counts, or `null` outside a repository. |
 | `note`      | Message shown under the buttons.                         |
 
 ### Hooks

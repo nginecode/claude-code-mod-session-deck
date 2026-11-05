@@ -20,13 +20,52 @@ const EMPTY: Deck = {
   window: 0,
   limits: [],
   costUsd: null,
+  git: null,
   note: '',
 }
 
 // Change the tag whenever the shape of Deck changes: it rejects state saved by an older version.
 const deck = atom({ plugin: 'session-deck', key: 'deck' } as const, EMPTY, {
-  shape: 'deck-1',
+  shape: 'deck-2',
 })
+
+// Prompts the git buttons submit. Claude does the actual git work, so the
+// normal permission flow and the user's own commit conventions still apply.
+const GIT_PROMPTS = {
+  commit:
+    'Review the current working tree changes with git status and git diff, then commit them with a sensible Conventional Commits message. Stage only files relevant to the changes. Do not push. Do not add any Co-Authored-By or other AI attribution trailer.',
+  push: 'Push the current branch to its remote. Set the upstream if it is not set yet. Never force-push.',
+  pr: 'Create a pull request for the current branch with the gh CLI: push the branch if needed, write a clear title and a description summarizing the commits, and report the PR URL. Do not add AI attribution.',
+  review:
+    'Review the uncommitted changes in the working tree (git diff and git status). Report bugs, risky changes and anything missing, but do not modify any files.',
+} as const
+
+type GitAction = keyof typeof GIT_PROMPTS
+
+// Parses `git status --porcelain=v1 -b` output into the Git summary.
+const parseGit = (out: string) => {
+  const lines = out.split('\n').filter(l => l !== '')
+  const head = lines.find(l => l.startsWith('## ')) ?? ''
+  const rest = head.slice(3)
+  const info = /^(.*?)(?:\.\.\.(\S+))?(?: \[(.*)\])?$/.exec(rest)
+  const branch = (info?.[1] ?? rest).replace(/^No commits yet on /, '') || 'HEAD'
+  const track = info?.[3] ?? ''
+  const ahead = Number(/ahead (\d+)/.exec(track)?.[1] ?? 0)
+  const behind = Number(/behind (\d+)/.exec(track)?.[1] ?? 0)
+  let staged = 0
+  let unstaged = 0
+  let untracked = 0
+  for (const l of lines) {
+    if (l.startsWith('## ')) continue
+    if (l.startsWith('??')) untracked++
+    else {
+      if (l[0] !== ' ') staged++
+      if (l[1] !== ' ') unstaged++
+    }
+  }
+
+  return { branch, upstream: info?.[2] ?? null, ahead, behind, staged, unstaged, untracked }
+}
 
 const tone = (p: number) => (p >= 85 ? 'red' : p >= 60 ? 'yellow' : 'green')
 
@@ -54,8 +93,14 @@ async function refresh($: Api) {
     $.session.cwd(),
     $.session.turns(),
   ])
+  // Not a repository, or git is missing: the Git section just hides.
+  const git = await $.process
+    .run(['git', 'status', '--porcelain=v1', '-b'], { timeoutMs: 5000 })
+    .then(r => (r.exitCode === 0 ? parseGit(r.stdout) : null))
+    .catch(() => null)
   await update($, deck, d => ({
     ...d,
+    git,
     model,
     cwd,
     turns,
@@ -169,6 +214,17 @@ export const register: Register = on => {
       }
     }
 
+    const gitAction = (action: GitAction, label: string) => async () => {
+      const cur = await read($, deck)
+      if (cur.turnId) return note('Wait for the current turn to finish')
+      try {
+        void $.prompt.submit({ text: GIT_PROMPTS[action] })
+        await note('Asked Claude to ' + label)
+      } catch (err) {
+        await note('Failed to ask Claude: ' + message(err))
+      }
+    }
+
     const reload = async () => {
       try {
         await refresh($)
@@ -244,6 +300,38 @@ export const register: Register = on => {
             </Text>
           )}
         </Box>
+
+        {d.git && (
+          <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1}>
+            <Box flexDirection="row" columnGap={2}>
+              <Text bold color="magenta">
+                ⎇ {d.git.branch}
+              </Text>
+              {d.git.upstream === null ? (
+                <Text dimColor>no upstream</Text>
+              ) : (
+                <Text color={d.git.ahead + d.git.behind > 0 ? 'yellow' : 'green'}>
+                  ↑{d.git.ahead} ↓{d.git.behind}
+                </Text>
+              )}
+            </Box>
+            {d.git.staged + d.git.unstaged + d.git.untracked === 0 ? (
+              <Text color="green">working tree clean</Text>
+            ) : (
+              <Box flexDirection="row" columnGap={2}>
+                <Text color="green">+{d.git.staged} staged</Text>
+                <Text color="yellow">~{d.git.unstaged} modified</Text>
+                <Text color="red">?{d.git.untracked} new</Text>
+              </Box>
+            )}
+            <Box flexDirection="row" columnGap={2}>
+              <Button key="commit" label="Commit" hotkey="m" onPress={gitAction('commit', 'commit')} />
+              <Button key="push" label="Push" hotkey="p" onPress={gitAction('push', 'push')} />
+              <Button key="pr" label="PR" hotkey="o" onPress={gitAction('pr', 'open a PR')} />
+              <Button key="review" label="Review" hotkey="v" onPress={gitAction('review', 'review changes')} />
+            </Box>
+          </Box>
+        )}
 
         <Box flexDirection="row" columnGap={2}>
           <Button key="stop" label="Stop" hotkey="s" onPress={stop} />

@@ -1,5 +1,15 @@
 export type Limit = { kind: string; percent: number }
 
+export type Git = {
+  branch: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  staged: number
+  unstaged: number
+  untracked: number
+}
+
 export type Deck = {
   turnId: string | null
   startedAt: number
@@ -13,6 +23,7 @@ export type Deck = {
   window: number
   limits: Limit[]
   costUsd: number | null
+  git: Git | null
   note: string
 }
 
