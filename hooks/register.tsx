@@ -72,7 +72,8 @@ const parseGit = (out: string) => {
   return { branch, upstream: info?.[2] ?? null, ahead, behind, staged, unstaged, untracked }
 }
 
-const tone = (p: number) => (p >= 85 ? 'red' : p >= 60 ? 'yellow' : 'green')
+// Neutral by default; only a nearly full bar is colored, as a warning.
+const tone = (p: number) => (p >= 85 ? 'red' : undefined)
 
 const bar = (p: number, width: number) => {
   const n = Math.round((Math.min(100, Math.max(0, p)) / 100) * width)
@@ -261,45 +262,36 @@ export const register: Register = on => {
       }
     }
 
+    const git = d.git
+    const dirty = git ? git.staged + git.unstaged + git.untracked : 0
+
     return (
       <Box flexDirection="column" rowGap={1}>
-        <Box flexDirection="row" columnGap={2}>
-          <Text bold color="magenta">
-            ◆ SESSION
-          </Text>
-          {working ? (
-            <Text inverse bold color="yellow">
-              {' '}
-              WORKING {secs(Math.max(0, now - d.startedAt))}{' '}
+        <Box flexDirection="column">
+          <Box flexDirection="row" columnGap={1}>
+            <Text bold>{working ? '●' : '○'} Session</Text>
+            <Text dimColor>
+              {working ? `working ${secs(Math.max(0, now - d.startedAt))}` : 'idle'}
             </Text>
-          ) : (
-            <Text inverse bold color="green">
-              {' '}
-              IDLE{' '}
-            </Text>
-          )}
-        </Box>
-
-        <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
-          <Box flexDirection="row" columnGap={2}>
-            <Text bold color="cyan">
-              {d.model || '—'}
-            </Text>
-            <Text color="blue">turns: {d.turns}</Text>
-            {d.costUsd !== null && <Text color="yellow">${d.costUsd.toFixed(2)}</Text>}
           </Box>
+          <Text dimColor wrap="truncate-end">
+            {[d.model || '—', `${d.turns} turns`, d.costUsd !== null ? '$' + d.costUsd.toFixed(2) : '']
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
           <Text dimColor wrap="truncate-end">
             {d.cwd || '—'}
           </Text>
         </Box>
 
-        <Box flexDirection="column" borderStyle="round" borderColor={tone(ctx)} paddingX={1}>
+        <Box flexDirection="column">
+          <Text bold>Usage</Text>
           <Box flexDirection="row" columnGap={1}>
-            <Text bold>context</Text>
-            <Text color={tone(ctx)}>{bar(ctx, width)}</Text>
-            <Text bold color={tone(ctx)}>
-              {d.percent === null ? '—' : d.percent + '%'}
+            <Text>context</Text>
+            <Text color={tone(ctx)} dimColor={!tone(ctx)}>
+              {bar(ctx, width)}
             </Text>
+            <Text color={tone(ctx)}>{d.percent === null ? '—' : d.percent + '%'}</Text>
           </Box>
           {d.tokens !== null && d.window > 0 && (
             <Text dimColor>
@@ -307,50 +299,44 @@ export const register: Register = on => {
             </Text>
           )}
           {d.limits.map(l => (
-            <Box flexDirection="row" columnGap={1}>
-              <Text bold>{windowName(l.kind)}</Text>
-              <Text color={tone(l.percent)}>{bar(l.percent, width)}</Text>
+            <Box key={l.kind} flexDirection="row" columnGap={1}>
+              <Text>{windowName(l.kind)}</Text>
+              <Text color={tone(l.percent)} dimColor={!tone(l.percent)}>
+                {bar(l.percent, width)}
+              </Text>
               <Text color={tone(l.percent)}>{l.percent}%</Text>
             </Box>
           ))}
         </Box>
 
-        <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1}>
+        <Box flexDirection="column">
+          <Text bold>Activity</Text>
           {d.tools.length > 0 ? (
-            <Text color="cyan">⚙ {d.tools.map(t => t.tool).join(', ')}</Text>
+            <Text>{d.tools.map(t => t.tool).join(', ')}</Text>
           ) : (
-            <Text dimColor>no tools running</Text>
+            <Text dimColor>No tools running</Text>
           )}
           {d.last && (
             <Text dimColor>
-              last turn: {secs(d.last.ms)}, {d.last.reason}
+              Last turn {secs(d.last.ms)} · {d.last.reason}
             </Text>
           )}
         </Box>
 
-        {d.git && (
-          <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1}>
-            <Box flexDirection="row" columnGap={2}>
-              <Text bold color="magenta">
-                ⎇ {d.git.branch}
+        {git && (
+          <Box flexDirection="column">
+            <Text bold>Git</Text>
+            <Text wrap="truncate-end">
+              {git.branch}
+              <Text dimColor>
+                {git.upstream === null ? ' · no upstream' : ` · ↑${git.ahead} ↓${git.behind}`}
               </Text>
-              {d.git.upstream === null ? (
-                <Text dimColor>no upstream</Text>
-              ) : (
-                <Text color={d.git.ahead + d.git.behind > 0 ? 'yellow' : 'green'}>
-                  ↑{d.git.ahead} ↓{d.git.behind}
-                </Text>
-              )}
-            </Box>
-            {d.git.staged + d.git.unstaged + d.git.untracked === 0 ? (
-              <Text color="green">working tree clean</Text>
-            ) : (
-              <Box flexDirection="row" columnGap={2}>
-                <Text color="green">+{d.git.staged} staged</Text>
-                <Text color="yellow">~{d.git.unstaged} modified</Text>
-                <Text color="red">?{d.git.untracked} new</Text>
-              </Box>
-            )}
+            </Text>
+            <Text dimColor>
+              {dirty === 0
+                ? 'Working tree clean'
+                : `${git.staged} staged · ${git.unstaged} modified · ${git.untracked} untracked`}
+            </Text>
             <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
               <Button key="commit" label="Commit" hotkey="m" onPress={gitAction('commit', 'commit')} />
               <Button key="push" label="Push" hotkey="p" onPress={gitAction('push', 'Push')} />
@@ -360,12 +346,15 @@ export const register: Register = on => {
           </Box>
         )}
 
-        <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
-          <Button key="stop" label="Stop" hotkey="s" onPress={stop} />
-          <Button key="compact" label="Compact" hotkey="c" onPress={compact} />
-          <Button key="refresh" label="Refresh" hotkey="r" onPress={reload} />
+        <Box flexDirection="column">
+          <Text bold>Session controls</Text>
+          <Box flexDirection="row" columnGap={1} rowGap={1} flexWrap="wrap">
+            <Button key="stop" label="Stop" hotkey="s" onPress={stop} />
+            <Button key="compact" label="Compact" hotkey="c" onPress={compact} />
+            <Button key="refresh" label="Refresh" hotkey="r" onPress={reload} />
+          </Box>
         </Box>
-        {d.note !== '' && <Text color="magenta">{d.note}</Text>}
+        {d.note !== '' && <Text dimColor>{d.note}</Text>}
       </Box>
     )
   })

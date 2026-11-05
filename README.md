@@ -1,6 +1,6 @@
 # session-deck
 
-A Claude Code mod that adds a colorful **session panel** next to the chat. It shows
+A Claude Code mod that adds a **session panel** next to the chat. It shows
 live session status and gives you one-key control buttons.
 
 - **Version:** 0.1.0
@@ -8,7 +8,7 @@ live session status and gives you one-key control buttons.
 
 ## Features
 
-- **Turn status** – a yellow `WORKING 12.3s` badge with a live timer, or a green `IDLE` badge.
+- **Turn status** – `● Session working 12.3s` with a live timer, or `○ Session idle`.
 - **Session info** – model, number of turns, cost in USD (when available) and working directory.
 - **Context usage** – a bar with percentage and `tokens / window` counts.
 - **Rate limits** – one bar per limit window (`5h`, `7d`, other kinds are shown as-is).
@@ -19,15 +19,11 @@ live session status and gives you one-key control buttons.
 - **Control buttons** – Stop, Compact, Refresh, each with a hotkey.
 - **Status line** – a short note below the buttons with the result of the last action.
 
-### Color thresholds
+### Styling
 
-Context and rate-limit bars change color with usage:
-
-| Usage    | Color  |
-| -------- | ------ |
-| < 60%    | green  |
-| 60–84%   | yellow |
-| ≥ 85%    | red    |
+The panel follows Claude Code's own look: plain text, bold section headings and dim
+secondary details, with no boxes or accent colors. The only color is red on a context or
+rate-limit bar at 85% or more.
 
 ### Buttons
 

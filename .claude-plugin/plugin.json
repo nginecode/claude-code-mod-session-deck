@@ -1,7 +1,7 @@
 {
   "name": "session-deck",
   "version": "0.1.0",
-  "description": "A colorful session panel: context, rate limits, cost, turn status and control buttons",
+  "description": "A session panel: context, rate limits, cost, turn status and control buttons",
   "author": { "name": "nginecode" },
   "types": "./types/index.d.ts"
 }
